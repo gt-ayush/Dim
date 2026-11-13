@@ -1,20 +1,20 @@
 # Headless KDE Plasma 6 Desktop (Rootless Podman)
 
-A production-ready, rootless Podman container running a minimal headless **KDE Plasma 6** desktop environment (Debian Trixie), accessible via browser-based noVNC, raw VNC, and SSH. Rendering is software-based (Xvfb + KWin compositing disabled) for smooth remote performance.
+A production-ready, rootless Podman container running a minimal headless **KDE Plasma 6** desktop environment (Debian Trixie), accessible via **RDP** and **SSH**. Rendering is software-based (Xorg/Xrdp session with KWin compositing disabled) for smooth remote performance.
 
 ## Architecture Overview
 
 - **Base image:** `debian:trixie-slim` (KDE Plasma 6 / Qt 6 stack)
-- **Desktop:** minimal `kde-plasma-desktop` (X11 session via `startplasma-x11`)
+- **Desktop:** minimal `kde-plasma-desktop` with `kwin-x11` and `konsole`
+- **Remote access:** `xrdp` + `xorgxrdp` (per-login X11 sessions via RDP)
 
 The container runs as a single image orchestrated by an `entrypoint.sh` process manager that launches the following stack:
 
 1. **OpenSSH Server** (`sshd`) — Remote shell access on container port `22`.
-2. **Xvfb** — Virtual X11 framebuffer on display `:1` (`1280x720x24`), providing a headless display.
-3. **DBus Session** — User session bus required by KDE/Plasma components.
-4. **KDE Plasma Desktop** (`startplasma-x11`) — Minimal desktop session (`kde-plasma-desktop`, `konsole`) with KWin compositing explicitly disabled via `/root/.config/kwinrc` (`Enabled=false`).
-5. **x11vnc** — VNC server attached to display `:1` on port `5900`.
-6. **websockify + noVNC** — WebSocket proxy serving the browser-based VNC client on port `6080`.
+2. **xrdp-sesman** — RDP session manager.
+3. **xrdp** — RDP server on container port `3389`, launching KDE Plasma sessions via `/etc/xrdp/startwm.sh` (`dbus-launch --exit-with-session startplasma-x11`).
+
+KWin compositing is explicitly disabled (`[Compositing] Enabled=false` in `/root/.config/kwinrc`, enforced by `entrypoint.sh` and `configs/startwm.sh`) for reliable software-rendered headless operation.
 
 ### Custom Assets
 The image build copies repository-provided KDE configuration and wallpapers into the container:
@@ -27,6 +27,7 @@ The image build copies repository-provided KDE configuration and wallpapers into
 .
 ├── configs/
 │   ├── sshd_config                      # SSH daemon configuration
+│   ├── startwm.sh                       # xrdp session startup (KDE Plasma X11)
 │   └── authorized_keys                  # Optional: SSH public keys (build-time)
 ├── kde-configs/                         # KDE Plasma configuration files
 │   ├── kcminputrc
@@ -52,6 +53,7 @@ The image build copies repository-provided KDE configuration and wallpapers into
 
 - [Podman](https://podman.io/) (rootless-capable)
 - `make` (optional, for shortcuts)
+- An RDP client (e.g. Windows Remote Desktop `mstsc`, [Remmina](https://remmina.org/), [FreeRDP](https://www.freerdp.com/) `xfreerdp`)
 
 ## Build and Run
 
@@ -85,8 +87,7 @@ podman build -t kde-headless -f Containerfile .
 podman run -d --rm \
   --name kde-headless \
   -p 2222:22 \
-  -p 5900:5900 \
-  -p 6080:6080 \
+  -p 3389:3389 \
   --shm-size=512m \
   kde-headless
 ```
@@ -95,26 +96,34 @@ podman run -d --rm \
 
 ## Port Mappings
 
-| Service        | Container Port | Host Port (default) | Protocol |
-|----------------|---------------:|--------------------:|----------|
-| SSH            |             22 |                2222 | TCP      |
-| VNC (x11vnc)   |           5900 |                5900 | TCP      |
-| noVNC (Web UI) |           6080 |                6080 | HTTP/WS  |
+| Service | Container Port | Host Port (default) | Protocol |
+|---------|---------------:|--------------------:|----------|
+| SSH     |             22 |                2222 | TCP      |
+| RDP     |           3389 |                3389 | TCP      |
 
-> Host ports can be adjusted in the `Makefile` or in your `podman run` command.
+> Host ports can be adjusted in the `Makefile` or in your `podman run` command (e.g. `-p 13389:3389` if host port `3389` is in use).
 
 ## Connection Guides
 
-### 1. Browser-based noVNC (Recommended)
+### 1. RDP (Desktop)
 
-Open in your browser:
+Connect with your preferred RDP client to:
 
+- **Host:** `localhost`
+- **Port:** `3389` (or your mapped host port)
+- **Username:** `root`
+- **Password:** `changeme`
+
+Examples:
+
+```bash
+# FreeRDP (Linux)
+xfreerdp /v:localhost:3389 /u:root /p:changeme /cert:ignore
+
+# Remmina: create an RDP connection to localhost:3389 (user root)
 ```
-http://localhost:6080/vnc.html
-```
 
-- Click **Connect** when prompted.
-- Enter the VNC password: `changeme`
+> The first connection may take a few moments while the Plasma session starts. If you see a black screen briefly, wait and/or reconnect once.
 
 ### 2. SSH
 
@@ -167,58 +176,52 @@ cat ~/.ssh/id_ed25519.pub | ssh -p 2222 root@localhost \
 
 Once key auth works, you can harden access by setting `PasswordAuthentication no` in `configs/sshd_config` and rebuilding.
 
-### 3. Native VNC Client
+### 3. SSH Port Forwarding (Secure Remote Access)
 
-Point any VNC client to:
-
-```
-localhost:5900
-```
-
-- **Password:** `changeme`
-
-### 4. SOCKS5 Tunneling (Secure Remote Access)
-
-To securely access VNC/noVNC over an untrusted network without exposing ports publicly, create a dynamic SOCKS5 proxy over SSH:
+To access RDP over an untrusted network without exposing port `3389` publicly, tunnel it over SSH:
 
 ```bash
-ssh -p 2222 -D 1080 -N root@localhost
+ssh -p 2222 -L 3389:localhost:3389 -N root@localhost
 ```
 
-- `-D 1080`: Opens a local SOCKS5 proxy on port `1080`
-- `-N`: No remote command (tunnel only)
-
-Then configure your browser or VNC client to use a SOCKS5 proxy at `127.0.0.1:1080`.  
-- For browser noVNC access through the tunnel, navigate to `http://localhost:6080/vnc.html` via the proxied browser session, or target the container's network address as reachable through the tunnel.
-- Alternatively, use local port forwarding for specific services:
-
-```bash
-# Forward noVNC
-ssh -p 2222 -L 6080:localhost:6080 -N root@localhost
-
-# Forward raw VNC
-ssh -p 2222 -L 5900:localhost:5900 -N root@localhost
-```
-
-After forwarding, access services on your local machine as usual (`http://localhost:6080/vnc.html`, `localhost:5900`).
+Then connect your RDP client to `localhost:3389` on your local machine; traffic will be forwarded securely through SSH.
 
 ## Credentials
 
 | Service | Username | Password   |
 |---------|----------|------------|
 | SSH     | `root`   | `changeme` |
-| VNC     | *(n/a)*  | `changeme` |
+| RDP     | `root`   | `changeme` |
 
-> ⚠️ **Security Warning:** These are default credentials intended for local/testing use. Change the root password and VNC password before deploying in any shared or exposed environment.
+> ⚠️ **Security Warning:** These are default credentials intended for local/testing use. Change the root password before deploying in any shared or exposed environment.
 > - Change root password: update `Containerfile` (`echo 'root:changeme' | chpasswd`) and rebuild.
-> - Change VNC password: update `entrypoint.sh` (`x11vnc -passwd ...`) and rebuild.
+> - Consider disabling SSH password auth (`PasswordAuthentication no` in `configs/sshd_config`) after configuring key-based access.
+
+## Local Storage / Persistence
+
+`make run` uses `--rm`, so container filesystem changes are lost when the container stops. To persist data, use a bind mount or volume:
+
+```bash
+mkdir -p ./data
+podman run -d --rm \
+  --name kde-headless \
+  -p 2222:22 -p 3389:3389 \
+  --shm-size=512m \
+  -v ./data:/root/data:Z \
+  kde-headless
+```
+
+- Use `:Z` (or `:z`) on SELinux systems as needed.
+- Mounting over `/root` (e.g. `-v ./kde-home:/root:Z`) will hide image-provided configs/wallpapers; initialize the host directory from the image first if you need them.
+- `--shm-size` configures RAM-backed `/dev/shm` (not persistent storage).
 
 ## Notes & Troubleshooting
 
-- **Compositing:** KWin compositing is disabled (`/root/.config/kwinrc`) to ensure acceptable performance under software rendering in Xvfb.
-- **Resolution:** Default virtual display is `1280x720x24`. Adjust in `entrypoint.sh` (`Xvfb :1 -screen 0 ...`).
-- **Plasma startup time:** The entrypoint includes brief delays to allow Xvfb/DBus/Plasma to initialize before starting VNC services. Increase `sleep` durations in `entrypoint.sh` on slower hosts if needed.
-- **Rootless Podman:** Binding to ports <1024 inside the container is fine; host-side mappings (e.g. `2222:22`) are unprivileged. Ensure your system allows the configured host ports.
+- **Compositing:** KWin compositing is disabled via `kwinrc` to ensure acceptable performance/stability under software rendering in headless sessions.
+- **Black screen / slow first connect:** allow time for the Plasma session to initialize on first RDP login; reconnect if necessary.
+- **Session logs:** check `podman logs kde-headless`, `/var/log/xrdp.log`, and `/var/log/xrdp-sesman.log` inside the container for RDP/session issues.
+- **Rootless Podman:** binding to container ports like 3389 is fine; host-side mappings are unprivileged. Ensure your chosen host ports are available.
+- **SELinux:** when using bind mounts, add `:Z` (or `:z`) to volume options if access is denied.
 
 ## License
 
