@@ -1,5 +1,5 @@
 [Greeter][Wallpaper][org.kde.image][General]
-Image=file:///usr/share/wallpapers/shadow/Peak.jpg
-PreviewImage=file:///usr/share/wallpapers/shadow/Peak.jpg
-SlidePaths=/usr/share/wallpapers/shadow
+Image=file:///root/.local/share/wallpapers/AndroidStudio-2560x1440.png
+PreviewImage=file:///root/.local/share/wallpapers/AndroidStudio-2560x1440.png
+SlidePaths=/root/.local/share/wallpapers
 SlideshowMode=0
