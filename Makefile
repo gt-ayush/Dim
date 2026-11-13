@@ -1,8 +1,7 @@
 IMAGE_NAME := kde-headless
 CONTAINER_NAME := kde-headless
 SSH_PORT := 2222
-VNC_PORT := 5900
-NOVNC_PORT := 6080
+RDP_PORT := 3389
 
 .PHONY: build run stop logs shell clean
 
@@ -13,8 +12,7 @@ run:
 	podman run -d --rm \
 		--name $(CONTAINER_NAME) \
 		-p $(SSH_PORT):22 \
-		-p $(VNC_PORT):5900 \
-		-p $(NOVNC_PORT):6080 \
+		-p $(RDP_PORT):3389 \
 		--shm-size=512m \
 		$(IMAGE_NAME)
 
