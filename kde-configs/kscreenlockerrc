@@ -1,0 +1,5 @@
+[Greeter][Wallpaper][org.kde.image][General]
+Image=file:///usr/share/wallpapers/shadow/Peak.jpg
+PreviewImage=file:///usr/share/wallpapers/shadow/Peak.jpg
+SlidePaths=/usr/share/wallpapers/shadow
+SlideshowMode=0
