@@ -1,8 +1,11 @@
-# Headless KDE Plasma Desktop (Rootless Podman)
+# Headless KDE Plasma 6 Desktop (Rootless Podman)
 
-A production-ready, rootless Podman container running a minimal headless KDE Plasma desktop environment, accessible via browser-based noVNC, raw VNC, and SSH. Rendering is software-based (Xvfb + KWin compositing disabled) for smooth remote performance.
+A production-ready, rootless Podman container running a minimal headless **KDE Plasma 6** desktop environment (Debian Trixie), accessible via browser-based noVNC, raw VNC, and SSH. Rendering is software-based (Xvfb + KWin compositing disabled) for smooth remote performance.
 
 ## Architecture Overview
+
+- **Base image:** `debian:trixie-slim` (KDE Plasma 6 / Qt 6 stack)
+- **Desktop:** minimal `kde-plasma-desktop` (X11 session via `startplasma-x11`)
 
 The container runs as a single image orchestrated by an `entrypoint.sh` process manager that launches the following stack:
 
