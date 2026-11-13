@@ -1,7 +1,7 @@
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 LABEL maintainer="DevOps Team"
-LABEL description="Headless KDE Plasma Desktop with SSH and noVNC access"
+LABEL description="Headless KDE Plasma 6 Desktop with SSH and noVNC access"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DISPLAY=:1
@@ -15,11 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     novnc \
     websockify \
     kde-plasma-desktop \
+    kwin-x11 \
     konsole \
     dbus-x11 \
     xauth \
     ca-certificates \
     procps \
+    x11-utils \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
