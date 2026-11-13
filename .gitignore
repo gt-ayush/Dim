@@ -1,0 +1,33 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+
+# SSH keys
+configs/authorized_keys
+
+# Logs and runtime
+*.log
+*.pid
+*.sock
+
+# Local env / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Container/build artifacts
+build/
+dist/
+tmp/
+.tmp/
+
+# Podman/Docker local overrides
+docker-compose.override.yml
+podman-compose.override.yml
